@@ -5,16 +5,16 @@ import "container/list"
 // Cache is a simple LRU cache. It is not safe for concurrent access.
 type Cache struct {
 	// 允许使用的最大内存
-	maxBytes  int64
+	maxBytes int64
 	// 当前已使用的内存
-	nbytes    int64
+	nbytes int64
 	// 双向链表，链表的每个节点都是一个entry
-	ll        *list.List
-	cache     map[string]*list.Element
+	ll    *list.List
+	cache map[string]*list.Element
 	// Optional and executed when an entry is purged.
 	// 某条记录被移除时的回调函数，可以为 nil。
 	OnEvicted func(key string, value Value)
-} 
+}
 
 // 双向链表节点的数据类型，保留key的好处是在删除节点时可以直接去map中删除key
 type entry struct {
@@ -30,7 +30,7 @@ type Value interface {
 
 // Cache 构造函数
 func New(maxBytes int64, onEvicted func(string, Value)) *Cache {
-	return &Cache {
+	return &Cache{
 		maxBytes:  maxBytes,
 		ll:        list.New(),
 		cache:     make(map[string]*list.Element),
@@ -40,7 +40,7 @@ func New(maxBytes int64, onEvicted func(string, Value)) *Cache {
 
 // 查找功能
 // 查找操作会使得对应的节点移动到队尾
-func (c *Cache) Get(key string)(value Value, ok bool) {
+func (c *Cache) Get(key string) (value Value, ok bool) {
 	if ele, ok := c.cache[key]; ok {
 		c.ll.MoveToFront(ele)
 		kv := ele.Value.(*entry)
@@ -90,6 +90,6 @@ func (c *Cache) Add(key string, value Value) {
 }
 
 // 返回缓存中记录的数量
-func (c * Cache) Len() int {
+func (c *Cache) Len() int {
 	return c.ll.Len()
 }
