@@ -4,6 +4,8 @@ import (
 	"errors"
 	"log"
 	"sync"
+
+	singleflight "github.com/caixingyi/geecache/singlefight.go"
 )
 
 // 定义接口Getter和回调函数
@@ -24,6 +26,7 @@ type Group struct {
 	getter    Getter
 	mainCache cache
 	peers     PeerPicker
+	loader    singleflight.Group
 }
 
 // 定义全局变量, 用于管理所有的Group实例
@@ -43,6 +46,7 @@ func NewGroup(name string, cacheBytes int64, getter Getter) *Group {
 		name:      name,
 		getter:    getter,
 		mainCache: cache{cachedBytes: cacheBytes},
+		loader:    singleflight.Group{},
 	}
 	group[name] = g
 	return g
@@ -78,20 +82,25 @@ func (g *Group) RegisterPeers(peers PeerPicker) {
 	g.peers = peers
 }
 
-
 // load 加载指定key的值
 func (g *Group) load(key string) (value ByteView, err error) {
-	if g.peers != nil {
-		if peer, ok := g.peers.PickPeer(key); ok {
-			value, err = g.getFromPeer(peer, key)
-			if err == nil {
-				return value, nil
+	shared, err := g.loader.Do(key, func() (interface{}, error) {
+		if g.peers != nil {
+			if peer, ok := g.peers.PickPeer(key); ok {
+				value, err = g.getFromPeer(peer, key)
+				if err == nil {
+					return value, nil
+				}
+				log.Println("[GeeCache] Failed to get from peer", err)
 			}
-			log.Println("[GeeCache] Failed to get from peer", err)
-		}
 
+		}
+		return g.getLocally(key)
+	})
+	if err == nil {
+		return shared.(ByteView), nil
 	}
-	return g.getLocally(key)
+	return ByteView{}, err
 }
 
 func (g *Group) getFromPeer(peer PeerGetter, key string) (ByteView, error) {
